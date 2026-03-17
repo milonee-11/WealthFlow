@@ -1,0 +1,496 @@
+================================================================================
+                    WEALTHFLOW EXPENSE TRACKING APPLICATION
+                           COMPLETE ARCHITECTURE DOCUMENTATION
+================================================================================
+
+📁 PROJECT STRUCTURE:
+├── backend/                    # .NET Web API
+└── frontend/                   # Next.js React Application
+
+================================================================================
+                            BACKEND ARCHITECTURE (.NET)
+================================================================================
+
+🔧 TECHNOLOGY STACK:
+• .NET 6/7 Web API
+• MongoDB Database (MongoDB Atlas/Local)
+• JWT Bearer Authentication
+• SMTP Email Service
+• ASP.NET Core Authorization
+
+📁 BACKEND FOLDER STRUCTURE:
+├── ExpenseTracker.API/
+│   ├── Controllers/            # API Endpoints
+│   │   ├── AuthController.cs          # Authentication & User Management
+│   │   ├── BudgetAlertController.cs   # Budget Alert Emails
+│   │   ├── ExpensesController.cs      # Expense CRUD Operations
+│   │   ├── TestController.cs          # API Testing
+│   │   └── TestEmailController.cs     # Email Testing
+│   ├── Data/
+│   │   └── MongoDbContext.cs          # MongoDB Database Context
+│   ├── Models/                     # Data Models
+│   │   ├── User.cs                   # User Entity
+│   │   ├── Expense.cs                # Expense Entity
+│   │   └── Alert.cs                  # Budget Alert Entity
+│   ├── Services/
+│   │   └── EmailService.cs           # Email Sending Service
+│   └── Program.cs                    # API Configuration & Startup
+
+🗄️ DATABASE DESIGN (MongoDB):
+Collections:
+├── Users
+│   ├── Id: ObjectId (Primary Key)
+│   ├── FullName: string
+│   ├── Email: string (Unique)
+│   ├── Password: string (Hashed)
+│   ├── MonthlyBudget: double (Default: 2000)
+│   ├── EmailNotifications: boolean (Default: true)
+│   └── CreatedAt: DateTime
+├── Expenses
+│   ├── Id: ObjectId (Primary Key)
+│   ├── UserId: string (Foreign Key to Users)
+│   ├── Title: string
+│   ├── Amount: double
+│   ├── Category: string
+│   ├── Note: string (Optional)
+│   └── Date: DateTime
+└── Alerts
+    ├── Id: ObjectId (Primary Key)
+    ├── UserId: string (Foreign Key to Users)
+    ├── Type: string ('info', 'warning', 'danger')
+    ├── Message: string
+    ├── Severity: string
+    ├── EmailSent: boolean (Default: false)
+    └── Timestamp: DateTime
+
+🔐 AUTHENTICATION FLOW:
+1. User Registration (POST /api/auth/signup)
+   ├── Input: { fullName, email, password }
+   ├── Password: Hashed using SHA256
+   ├── User: Created in MongoDB with EmailNotifications = true
+   ├── Response: JWT Token + User Data
+   └── Token: Stored in localStorage
+
+2. User Login (POST /api/auth/login)
+   ├── Input: { email, password }
+   ├── Validation: Hash comparison with stored password
+   ├── Response: JWT Token + User Data
+   └── Authorization: Bearer token for protected routes
+
+3. JWT Token Structure:
+   ├── NameIdentifier: User Id
+   ├── Email: User Email
+   ├── Name: User Full Name
+   └── Expiry: 7 days
+
+💰 EXPENSE CRUD OPERATIONS (ExpensesController.cs):
+1. Create Expense (POST /api/expenses)
+   ├── Authentication: [Authorize] required
+   ├── Input: { title, amount, category, note, date }
+   ├── UserId: Extracted from JWT token
+   ├── Process:
+   │   ├── Save expense to MongoDB
+   │   ├── Check budget thresholds
+   │   └── Send automatic alerts/emails
+   └── Response: Created expense object
+
+2. Read Expenses (GET /api/expenses)
+   ├── Authentication: [Authorize] required
+   ├── UserId: Extracted from JWT token
+   ├── Filter: expenses.Where(e => e.UserId == userId)
+   └── Response: Array of user expenses
+
+3. Update Expense (PUT /api/expenses/{id})
+   ├── Authentication: [Authorize] required
+   ├── Validation: Ensure expense belongs to user
+   ├── Process: Update expense + budget check
+   └── Response: Updated expense object
+
+4. Delete Expense (DELETE /api/expenses/{id})
+   ├── Authentication: [Authorize] required
+   ├── Validation: Ensure expense belongs to user
+   ├── Process: Delete expense from MongoDB
+   └── Response: 200 OK
+
+📧 BUDGET ALERT SYSTEM:
+Automatic Budget Checking (CheckBudgetAndAlert method):
+1. Trigger: After every expense add/update/delete
+2. Process:
+   ├── Fetch user's monthly budget
+   ├── Calculate total expenses for current month
+   ├── Calculate percentage: (total / budget) * 100
+   ├── Determine alert level:
+   │   ├── ≥75%: Info alert (blue)
+   │   ├── ≥90%: Warning alert (yellow)
+   │   ├── ≥100%: Danger alert (red)
+   ├── Create alert record in MongoDB
+   └── Send email if EmailNotifications = true
+
+Email Service (EmailService.cs):
+• SMTP Configuration for email sending
+• Templates for budget alert emails
+• Error handling for failed email delivery
+• Supports both automatic and manual email triggers
+
+Email Control Flow:
+├── Frontend Toggle → EmailSettingsContext
+├── API Call → PUT /api/auth/update-email-notifications
+├── Backend → Update User.EmailNotifications field
+└── Future Emails → Respect EmailNotifications flag
+
+🔧 API ENDPOINTS SUMMARY:
+Authentication:
+├── POST /api/auth/signup - User registration
+├── POST /api/auth/login - User login
+├── GET /api/auth/me - Get current user
+├── PUT /api/auth/profile - Update user profile
+└── PUT /api/auth/update-email-notifications - Update email settings
+
+Expenses:
+├── GET /api/expenses - Get user expenses
+├── POST /api/expenses - Add new expense
+├── PUT /api/expenses/{id} - Update expense
+└── DELETE /api/expenses/{id} - Delete expense
+
+Budget Alerts:
+├── POST /api/budgetalert/send-budget-alert - Manual email sending
+└── Automatic alerts triggered by expense operations
+
+================================================================================
+                           FRONTEND ARCHITECTURE (NEXT.JS)
+================================================================================
+
+🎨 TECHNOLOGY STACK:
+• Next.js 14 with App Router
+• React 18 with TypeScript
+• Tailwind CSS for styling
+• Framer Motion for animations
+• Recharts for data visualization
+• Three.js + React Three Fiber for 3D graphics
+• Axios for API communication
+• Context API for state management
+
+📁 FRONTEND FOLDER STRUCTURE:
+├── app/                        # Next.js App Router Pages
+│   ├── page.tsx               # Dashboard/Home page
+│   ├── records/page.tsx        # Expense Records page
+│   ├── analytics/page.tsx      # Analytics page
+│   ├── login/page.tsx          # Login page
+│   └── signup/page.tsx         # Signup page
+├── components/                 # Reusable React Components
+│   ├── layout/
+│   │   └── Header.tsx          # Navigation header with notifications
+│   ├── BudgetAlert.tsx         # Budget alert display component
+│   ├── BudgetAlertBell.tsx     # Manual email trigger component
+│   ├── BudgetDisplay.tsx       # Budget overview component
+│   ├── BudgetSetup.tsx         # Budget configuration modal
+│   ├── ExpenseForm.tsx         # Add/Edit expense form
+│   ├── ExpenseList.tsx         # Expense list component
+│   ├── NoteList.tsx            # Alternative expense list
+│   ├── RealTimeChart.tsx       # Spending trends chart
+│   ├── ExpenseChart.tsx        # Expense category chart
+│   ├── LoadingScreen.tsx       # Loading animation
+│   └── universe/
+│       └── MoneySphere.tsx     # 3D animated wallet
+├── contexts/                   # React Context for State Management
+│   ├── AuthContext.tsx         # Authentication state
+│   ├── AlertContext.tsx        # Budget alert state
+│   └── EmailSettingsContext.tsx # Email notification settings
+├── hooks/                      # Custom React Hooks
+│   └── useExpenses.ts          # Expense API logic
+├── lib/                        # Utility Libraries
+│   ├── api.ts                  # Axios API client
+│   └── types.ts                # TypeScript type definitions
+└── styles/                     # Global styles
+
+🔄 STATE MANAGEMENT ARCHITECTURE:
+
+1. AuthContext.tsx (Authentication State)
+   ├── User: Current user data
+   ├── Token: JWT authentication token
+   ├── Loading: Auth state loading
+   ├── Error: Auth errors
+   ├── Login/Signup/Logout functions
+   └── Axios default headers configuration
+
+2. AlertContext.tsx (Budget Alert State)
+   ├── Alerts: Array of budget alerts
+   ├── AddAlert: Function to add new alert
+   ├── ClearAlerts: Function to clear all alerts
+   └── Notification bell with alert count
+
+3. EmailSettingsContext.tsx (Email Notification Settings)
+   ├── EmailNotificationsEnabled: Boolean toggle state
+   ├── SetEmailNotificationsEnabled: Update function
+   ├── Loading: Settings update loading state
+   └── API integration with backend settings
+
+🎨 UI COMPONENTS BREAKDOWN:
+
+Header.tsx (Navigation Header):
+• Logo with animation
+• Navigation menu (Dashboard, Records, Analytics)
+• Notification bell with alert count
+• Logout button
+• Responsive mobile menu
+
+BudgetDisplay.tsx (Budget Overview):
+• Monthly/Yearly budget toggle
+• Progress bars for budget usage
+• Total spent visualization
+• Edit budget functionality
+• Currency symbol support (₹)
+
+ExpenseForm.tsx (Add/Edit Expense):
+• Form fields: Title, Amount (₹ prefix), Category, Date, Note
+• Real-time validation
+• Modal/popup interface
+• Edit mode support
+• Auto-focus on amount field
+
+RealTimeChart.tsx (Spending Trends):
+• Area chart and Line chart toggle
+• Last 7 days spending data
+• Brown color theme consistency
+• Responsive design
+• Animated chart transitions
+
+MoneySphere.tsx (3D Animated Wallet):
+• Three.js 3D scene with lighting
+• Animated wallet/money sphere
+• Expense data visualization
+• Premium vault UI overlay
+• Interactive 3D controls
+• Technologies: Three.js, React Three Fiber, Drei
+
+🎯 3D MODEL IMPLEMENTATION (MoneySphere.tsx):
+
+Technology Stack:
+├── @react-three/fiber - React renderer for Three.js
+├── @react-three/drei - Helper components for Three.js
+├── three - 3D graphics library
+└── framer-motion - 3D animations
+
+3D Scene Components:
+├── Canvas - Three.js rendering container
+├── OrbitControls - Interactive 3D camera controls
+├── Lighting - Ambient and directional lights
+├── 3D Geometry - Sphere, box, and plane meshes
+├── Materials - Custom textures and colors
+└── HTML Overlays - UI elements in 3D space
+
+3D Features:
+• Rotating money sphere with expense data
+• Interactive camera controls (zoom, rotate, pan)
+• Animated floating expense notes
+• Premium vault with glassmorphism effect
+• Real-time data binding to expense amounts
+• Responsive 3D scaling
+
+📊 DATA VISUALIZATION:
+
+Recharts Implementation:
+├── AreaChart - Filled area under spending line
+├── LineChart - Linear spending trends
+├── BarChart - Category-wise expenses
+├── PieChart - Expense distribution
+├── CartesianGrid - Chart grid lines
+├── XAxis/YAxis - Chart axes
+├── Tooltip - Interactive data tooltips
+└── ResponsiveContainer - Responsive chart sizing
+
+Chart Features:
+• Brown color theme (#8d6e63, #d4a374, #8b5a3c, #5d4037)
+• Smooth animations (500ms duration)
+• Interactive hover states
+• Custom tooltip styling
+• Gradient fills for area charts
+• Data point markers
+
+🎨 STYLING SYSTEM (Tailwind CSS):
+
+Color Palette (Brown Theme):
+├── bg-warm-offwhite - Main background (#faf8f6)
+├── bg-light-brown - Secondary background (#d4a374)
+├── bg-rich-brown - Primary accent (#5d4037)
+├── text-rich-brown - Primary text (#5d4037)
+├── text-medium-brown - Secondary text (#8b5a3c)
+└── border-light-brown - Borders (#d4a374)
+
+UI Components:
+• Rounded corners (rounded-xl, rounded-2xl)
+• Shadow effects (shadow-lg, shadow-xl)
+• Hover states with transitions
+• Responsive grid layouts
+• Custom animations with Framer Motion
+
+🔄 FRONTEND DATA FLOW:
+
+1. User Authentication Flow:
+   Login/Signup → AuthContext → localStorage → API Headers → Backend JWT → Protected Routes
+
+2. Expense Management Flow:
+   ExpenseForm → useExpenses Hook → API Call → MongoDB → State Update → UI Refresh
+
+3. Budget Alert Flow:
+   Expense Added → Backend Budget Check → Alert Created → Email Sent → AlertContext Updated → Notification Bell
+
+4. Email Settings Flow:
+   Header Toggle → EmailSettingsContext → API Call → Backend Update → State Sync
+
+🔧 API CLIENT (api.ts):
+
+Axios Configuration:
+├── Base URL: http://localhost:8080/api
+├── Request interceptors: JWT token attachment
+├── Response interceptors: Error handling
+├── CRUD methods: getExpenses, addExpense, updateExpense, deleteExpense
+└── Generic methods: get, post, put for custom endpoints
+
+Error Handling:
+├── Network errors: User-friendly messages
+├── Authentication errors: Redirect to login
+├── Validation errors: Form field highlighting
+└── Server errors: Error display components
+
+🎯 KEY BUSINESS LOGIC:
+
+Budget Thresholds:
+• 75%: Info alerts (blue theme)
+• 90%: Warning alerts (yellow theme)
+• 100%+: Danger alerts (red theme)
+
+Email Control Points:
+• Frontend toggle in header
+• Backend EmailNotifications field
+• Double verification before sending
+
+Currency Display:
+• ₹ symbol prefix for all amounts
+• Consistent formatting: ₹2500.00
+• Input field with ₹ prefix
+• Chart tooltips with ₹ symbol
+
+================================================================================
+                        COMPLETE APPLICATION FLOW
+================================================================================
+
+USER JOURNEY:
+
+1. Onboarding:
+   ├── Visit /signup → Create account → JWT token → Redirect to dashboard
+   └── Visit /login → Authenticate → JWT token → Redirect to dashboard
+
+2. Dashboard Experience:
+   ├── Header: Navigation, notifications, user info
+   ├── Budget Display: Monthly overview, progress bars
+   ├── Stats Cards: Total expenses, daily average, budget used
+   ├── Charts: Real-time spending trends (Area/Line)
+   └── 3D Animation: MoneySphere with expense data
+
+3. Expense Management:
+   ├── Click "Add Expense" → ExpenseForm modal
+   ├── Fill: Title, Amount (₹), Category, Date, Note
+   ├── Submit → API call → MongoDB → Budget check
+   └── Result: UI update + Alert notification + Email (if enabled)
+
+4. Budget Alert System:
+   ├── Trigger: Expense crosses 75%/90%/100% threshold
+   ├── Backend: CheckBudgetAndAlert() method
+   ├── Actions: Create alert + Send email + Update UI
+   └── Notification: Alert bell + Dropdown details
+
+5. Records Management:
+   ├── View all expenses in NoteList
+   ├── Edit: Click edit button → ExpenseForm modal
+   ├── Delete: Click trash button → API call → Remove from UI
+   └── Filter: Search, category, date filters
+
+6. Email Control:
+   ├── Toggle: Header email on/off switch
+   ├── Backend: Update User.EmailNotifications field
+   ├── Effect: Future emails respect setting
+   └── Manual: BudgetAlertBell for immediate emails
+
+TECHNICAL INTEGRATION:
+
+Frontend ↔ Backend Communication:
+├── Authentication: JWT Bearer tokens
+├── Data: RESTful API endpoints
+├── Real-time: Polling for updates (5-second intervals)
+├── Error Handling: Centralized error management
+└── Performance: Optimistic updates, loading states
+
+Database Operations:
+├── Create: Insert new documents
+├── Read: Query with user filtering
+├── Update: Modify existing documents
+├── Delete: Remove documents
+└── Aggregation: Budget calculations, expense totals
+
+Security Features:
+├── Authentication: JWT token validation
+├── Authorization: User-specific data access
+├── Password Security: SHA256 hashing
+├── CORS: Cross-origin resource sharing
+└── Input Validation: Server-side validation
+
+Performance Optimizations:
+├── Frontend: React.memo, useMemo, useCallback
+├── Backend: MongoDB indexing, efficient queries
+├── API: Response caching, compression
+├── UI: Lazy loading, code splitting
+└── 3D: Optimized Three.js rendering
+
+================================================================================
+                           DEVELOPMENT & DEPLOYMENT
+================================================================================
+
+BACKEND DEVELOPMENT:
+• dotnet run - Start development server
+• Swagger/OpenAPI documentation
+• Hot reload during development
+• MongoDB local/Atlas connection
+• Environment variable configuration
+
+FRONTEND DEVELOPMENT:
+• npm run dev - Start development server
+• Next.js hot reload
+• TypeScript strict mode
+• Tailwind CSS JIT compilation
+• Component-based architecture
+
+DEPLOYMENT CONSIDERATIONS:
+Backend:
+├── Docker containerization
+├── Environment-specific configurations
+├── MongoDB Atlas for production
+├── SSL/TLS encryption
+└── API rate limiting
+
+Frontend:
+├── Vercel/Netlify deployment
+├── Static asset optimization
+├── Environment variables
+├── SEO optimization
+└── Performance monitoring
+
+================================================================================
+This architecture provides a complete, scalable expense tracking application with:
+✅ Real-time budget monitoring
+✅ Intelligent alert system
+✅ User-controlled email notifications
+✅ Beautiful 3D visualizations
+✅ Responsive brown theme design
+✅ Secure authentication
+✅ Efficient CRUD operations
+✅ Modern tech stack
+
+Created: March 2026
+Architecture: .NET Web API + Next.js React
+Database: MongoDB
+3D Graphics: Three.js + React Three Fiber
+Styling: Tailwind CSS
+Authentication: JWT Bearer Tokens
+Email: SMTP Service
+================================================================================
